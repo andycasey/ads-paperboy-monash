@@ -1,2 +1,4 @@
 *.pdf
+.gitignore
+.DS_Store
 *.log
