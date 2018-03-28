@@ -64,7 +64,7 @@ Will search for papers published by Monash researchers in the month of August,
 2014.
 
 
-Set up a monthly Cron job to run the script automatically
+Set up a monthly `cron` job to run the script automatically
 ---------------------------------------------------------
 
 At a terminal, type:
