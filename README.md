@@ -1,5 +1,14 @@
+Monash Paperboy
+---------------
+
+Search for recently published papers by Monash physicists and astrophysicists,
+and prepare a summary document containing the first page of recnetly published
+papers so that they can be put on display within the Monash School of Physics
+and Astrophysics.
+
+
 Installation
-============
+------------
 
 Clone this repository using this terminal command:
 
@@ -12,7 +21,7 @@ Installing required Python packages
 The code requires a few custom Python packages which can be installed with the 
 following terminal command:
 
-    pip install ads PyPDF2
+    pip install requests ads pdfrw
 
 
 Getting an ADS key
@@ -68,4 +77,9 @@ And enter in the following line:
 
 Then the code will run at 07:00 AM on the first day of every month. The 
 `<YOUR_FOLDER>` expression above refers to the folder location where this script
-lives on your local system.
+lives on your local system. 
+
+Note that the `paperboy.py` script will also send the summary PDF to the nearest
+printer (using the `lp` system command), but you will need to swipe your access
+card at a physical Monash printer in order to release the job from the queue,
+just like any other print job.
