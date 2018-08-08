@@ -11,9 +11,6 @@ import sys
 from time import localtime
 
 import ads
-import requests
-from pdfrw import PdfReader, PdfWriter, PdfParseError
-
 
 paper_format = "{count}. {title}\n{authors}, {pub}, {vol}{issue}{page} ({year}).\n\n"
 
@@ -34,8 +31,8 @@ if __name__ == '__main__':
     print('Querying {0} / {1}'.format(year, month))
 
     # Retrieve all the articles published last month (refereed or otherwise)
-    query = 'aff:"Monash" AND ((property:refereed AND (pubdate:20{0}-{1:02d} OR pubdate:20{0}-{2:02d}))'\
-            ' OR identifier:"{0}{1:02d}.*")'.format(str(year)[-2:], month, month + 1)
+    query = 'aff:"Monash" AND ((property:refereed AND pubdate:20{0}-{1:02d})'\
+            ' OR identifier:"{0}{1:02d}.*")'.format(str(year)[-2:], month)
 
     articles = list(ads.SearchQuery(q=query,
         fl=["id", "first_author", "author", "aff", "title", "year", "bibcode", "identifier", "journal", "volumne", "pub", "page", "issue", "pubdate"]))
@@ -56,14 +53,11 @@ if __name__ == '__main__':
                                     title=article.title[0],
                                   authors="; ".join(authors),
                                   pub=article.pub,
-                                  vol=article.volume,
+                                  vol="in press" if article.volume is None else "{}".format(article.volume),
                                   issue=", {}".format(article.issue) if article.issue is not None else "",
                                   page=", {}".format(article.page[0]) if article.page[0] is not None else "",
                                   year=article.pubdate.split("-")[0]))
         counter += 1
-
-    # Send to printer.
-    #os.system("lp {}".format(os.path.abspath(summary_path)))
 
 
 """
