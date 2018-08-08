@@ -36,10 +36,10 @@ if __name__ == '__main__':
             ' OR identifier:"{0}{1:02d}.*")'.format(str(year)[-2:], month)
 
     articles = list(ads.SearchQuery(q=query,
-        fl=["id", "author", "aff", "title", "year", "bibcode", "identifier"]))
+        fl=["id", "first_author", "author", "aff", "title", "year", "bibcode", "identifier"]))
 
     print("Found {0} articles. Downloading PDFs..".format(len(articles)))
-    
+
     # Retrieve articles from arXiv.
     paths = []
     N = len(articles)
@@ -48,8 +48,9 @@ if __name__ == '__main__':
         for identifier in article.identifier:
             if "arXiv" in identifier: break
         else:
-            print("No arXiv identifier found for {}:\nTitle: {}\nAuthors: {}"\
-                .format(article, article.title, article.author))
+            #print("No arXiv identifier found for {}:\nTitle: {}\nAuthors: {}"\
+            #    .format(article, article.title, article.author))
+            print("No arXiv identifier for http://adsabs.harvard.edu/abs/{}".format(article.bibcode))
             continue
 
         number = int(identifier.split("arXiv")[1][:-1])/100000.0
@@ -66,6 +67,10 @@ if __name__ == '__main__':
             response = requests.get(url)
             with open(path, "wb") as fp:
                 fp.write(response.content)
+
+        else:
+            print("{}, {} ({}; http://adsabs.harvard.edu/abs/{})".format(article.title[0], ", ".join(article.author),
+            article.bibcode, article.bibcode))
 
     # Join PDFs.
     summary_path = os.path.join(folder, "summary.pdf")
@@ -88,4 +93,4 @@ if __name__ == '__main__':
     print("Created {}".format(summary_path))
 
     # Send to printer.
-    os.system("lp {}".format(os.path.abspath(summary_path))
+    #os.system("lp {}".format(os.path.abspath(summary_path)))
