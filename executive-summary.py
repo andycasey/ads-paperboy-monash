@@ -8,6 +8,7 @@ __author__ = 'Andy Casey <andrew.casey@monash.edu>'
 
 import os
 import requests
+import re
 import sys
 from time import localtime
 from pdfrw import PdfReader, PdfWriter, PdfParseError
@@ -18,6 +19,12 @@ import ads
 paper_format = "{count}. {title}\n{authors}, {pub}, {vol}{issue}{page} ({year}).\n\n"
 
 strip_affiliation = lambda _: _.replace(",", "").replace(";", "").lower()
+
+
+def parse_arxiv_number(identifier):
+    number = re.sub("\D$", "", identifier.split("arXiv")[1].lstrip(":"))
+    return number if "." in number else int(number)/100000.0
+    
 
 if __name__ == '__main__':
 
@@ -77,20 +84,16 @@ if __name__ == '__main__':
             if "arXiv" in identifier: 
                 arxiv_version_found = True
 
-                
-
-                number = int(identifier.split("arXiv")[1][:-1])/100000.0
+                number = parse_arxiv_number(identifier)
                 basename = "{0}.pdf".format(number)
 
                 # arXiv/ADS gets this *wrong*
                 #url = "https://arxiv.org/pdf/{0}".format(basename)
 
-
                 path = os.path.join(folder, basename)
                 paths.append(path)
 
                 if not os.path.exists(path):
-
 
                     url = f"http://adsabs.harvard.edu/cgi-bin/nph-data_query?bibcode={article.bibcode}&link_type=PREPRINT"
                     r = requests.get(url)
@@ -105,6 +108,10 @@ if __name__ == '__main__':
                     with open(path, "wb") as fp:
                         fp.write(response.content)
 
+                else:
+                    print(f"({i}) Found {path} -- skipping")
+
+                break
 
         if not arxiv_version_found:
             missing_urls.append("http://adsabs.harvard.edu/abs/{}".format(article.bibcode))
