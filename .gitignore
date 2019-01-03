@@ -5,3 +5,5 @@
 *.log
 gmail-credentials.json
 token.json
+__pycache__/
+*.pyc
