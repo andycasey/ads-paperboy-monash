@@ -1,4 +1,7 @@
 *.pdf
+*.txt
 .gitignore
 .DS_Store
 *.log
+gmail-credentials.json
+token.json
