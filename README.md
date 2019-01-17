@@ -21,7 +21,7 @@ Installing required Python packages
 The code requires a few custom Python packages which can be installed with the 
 following terminal command:
 
-    pip install requests ads pdfrw
+    pip install -r requirements.txt 
 
 
 Getting an ADS key

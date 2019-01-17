@@ -88,7 +88,6 @@ import base64
 import email.encoders
 import numpy as np
 import os
-import requests
 import re
 import sys
 from datetime import datetime

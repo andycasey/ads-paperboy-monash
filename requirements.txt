@@ -1,0 +1,9 @@
+numpy
+fuzzywuzzy
+requests
+ads
+pdfrw
+PyMuPDF
+google-api-python-client
+oauth2client
+astropy
