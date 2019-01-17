@@ -10,11 +10,16 @@ This script is expected to be run about once a month.
 OUTPUT_PATH_PREFIX = "{here}/{now:%Y-%B}"
 LOCAL_RECORDS_PATH = "{here}/records.csv"
 ADS_QUERY = "aff:\"Monash\""
+# Some interesting edge cases:
 #ADS_QUERY = "bibcode:\"2018MNRAS.481.4009V\""
+#ADS_QUERY = "bibcode:\"2018MNRAS.481..645Z\""
 EXECUTIVE_SUMMARY_ARTICLE_FORMAT = "{count}. {article.title[0]}\n{formatted_authors}, {article.pub}, {formatted_volume}{formatted_issue}{formatted_page} ({formatted_year}).\n\n"
 
 EMAIL_PREFIX = ""
-EMAIL_TO = "andrew.casey@monash.edu"
+EMAIL_TO = ", ".join([
+    "andrew.casey@monash.edu",
+#    "Zac.Johnston@monash.edu"
+])
 
 
 def matching_author(author, aff):
@@ -175,6 +180,10 @@ print(f"{len(new_articles)} new articles found")
 records.write(local_records_path, overwrite=True)
 print(f"Saved records to {local_records_path}")
 
+if len(new_articles) == 0:
+    sys.exit()
+
+
 # Sort the new records to have first authors at front.
 author_index = [ma[0][0] for a, ma in new_articles]
 na_indices = np.argsort(author_index)
@@ -229,27 +238,41 @@ for i, (article, matching_authors) in enumerate(new_articles, start=1):
 
             author_list = ", ".join(article.author)
             blocks = page.getTextBlocks()
-            block_ratios = [fuzz.ratio(block[4], author_list) for block in blocks]
+            block_ratios = [fuzz.ratio(block[4], last_name) for block in blocks]
 
             block_index = np.argmax(block_ratios)
 
             print(f"Using block index {block_index}: {blocks[block_index]} (score: {block_ratios[block_index]}; {block_ratios})")
 
-            author_name_reversed = ", ".join(author_name.split(", ")[::-1])
-            name_ratios = []
-            for block in blocks[block_index][4].split(", "):
+            fuzzy_name_split_trials = [", ", ","]
+            best_ratios = []
 
-                block_str = block.replace("-\n", "")
-                name_ratios.append(max(fuzz.ratio(block_str, author_name),
-                                       fuzz.ratio(block_str, author_name_reversed)))
+            for fuzzy_name_split in fuzzy_name_split_trials:
+                author_name_reversed = ", ".join(author_name.split(", ")[::-1])
+                name_ratios = []
+                for block in blocks[block_index][4].split(fuzzy_name_split):
 
-            name_index = np.argmax(name_ratios)
-            matched_string = blocks[block_index][4].split(", ")[name_index]
+                    block_str = block.replace("-\n", "")
+                    name_ratios.append(max(fuzz.ratio(block_str, author_name),
+                                           fuzz.ratio(block_str, author_name_reversed)))
 
-            print(f"Using matched name: {matched_string} for '{author_name}' (score: {name_ratios[name_index]}; {name_ratios})")
+                name_index = np.argmax(name_ratios)
+                matched_string = blocks[block_index][4].split(fuzzy_name_split)[name_index]
 
-            for instance in page.searchFor(matched_string):
-                page.addHighlightAnnot(instance)
+                best_ratios.append([matched_string, name_ratios[name_index]])
+
+            matched_string, best_ratio = best_ratios[np.argmax([ea[1] for ea in best_ratios])]
+
+            if best_ratio < 50:
+                print(f"Could not find likely match for '{author_name}' (score: {best_ratio} for {matched_string})")
+
+                # TODO: puta note about this in the email?
+
+            else:
+                print(f"Using matched name: {matched_string} for '{author_name}' (score: {best_ratio})")
+
+                for instance in page.searchFor(matched_string):
+                    page.addHighlightAnnot(instance)
 
 
     new_path = f"{path}.pdf"
@@ -318,6 +341,8 @@ if failed_to_add_page_errors or new_articles_with_errors:
 
     failure_summary += "\n\nThese PDFs will need to be downloaded, printed, and highlighted separately."
 
+else:
+    failure_summary = ""
 
 # TODO: Remove temporary files?
 
@@ -337,12 +362,12 @@ service = build('gmail', 'v1', http=creds.authorize(Http()))
 message = MIMEMultipart()
 message["to"] = EMAIL_TO
 message["from"] = "andrew.casey@monash.edu"
-message["subject"] = f"Publications for {now:%B}"
+message["subject"] = f"Publications for {year} / {month}"
 
 email_body = f"""
 Dear colleague,
 
-Attached you will find a summary of publications in {now:%B} by Monash researchers in the School of Physics and Astronomy.
+Attached you will find a summary of publications in {year} / {month} by Monash researchers in the School of Physics and Astronomy.
 
 {executive_summary}
 

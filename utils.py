@@ -23,7 +23,7 @@ def stripped_affiliations(aff):
 def load_records(path):
 
     if os.path.exists(path):
-        return Table.read(path)
+        return Table.read(path, encoding="latin-1")
 
     # Return an empty Table with the expected columns.
     return Table(rows=None,
@@ -32,7 +32,7 @@ def load_records(path):
 
 
 def prepare_record(article):
-    return (int(article.id), f"{datetime.now()}", article.title[0].encode(), article.bibcode, article.pubdate)
+    return (int(article.id), f"{datetime.now()}", str(article.title[0].encode()), article.bibcode, article.pubdate)
 
 
 
