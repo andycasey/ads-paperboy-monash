@@ -100,10 +100,13 @@ from fuzzywuzzy import fuzz
 from pdfrw import PdfReader, PdfWriter, PdfParseError
 
 import ads
+import requests
 from googleapiclient.discovery import build
 from httplib2 import Http
 from apiclient import errors
 from oauth2client import file, client, tools
+
+from bs4 import BeautifulSoup
 
 import utils
 
@@ -173,7 +176,79 @@ for i, article in enumerate(articles):
     new_articles.append((article, matching_authors))
     records.add_row(utils.prepare_record(article))
 
-print(f"{len(new_articles)} new articles found")
+print(f"Found {len(new_articles)} new articles found")
+
+# Explicitly add these records 
+print("Searching InspireHEP like a caveman")
+
+inspire = requests.get("http://inspirehep.net/search?ln=en&p=find+Monash&of=hb&action_search=Search&sf=earliestdate&so=d&rm=&rg=250&sc=0")
+
+if not inspire.ok:
+    inspire.raise_for_status()
+
+inspire_contents = BeautifulSoup(inspire.content, "html.parser")
+
+inspire_records = inspire_contents.find_all(attrs={"class": "record_body"})
+
+inspire_queries = []
+done = False
+arxiv_identifier_prefix = f"{year % 100:0>2d}{month:0>2d}"
+for record in inspire_records:
+
+    if done: break
+
+    # Check to see if we have a DOI or an arXiv number.
+    for link in record.find_all("a"):
+
+        if "doi.org" in link.attrs["href"].lower():
+            href = link.attrs["href"]
+            doi = href.split("doi.org/")[1]
+            inspire_queries.append(f"doi:\"{doi}\"")
+            break
+
+        if "arxiv.org" in link.attrs["href"].lower():
+            href = link.attrs["href"]
+            arxiv_identifer = href.split("/")[-1]
+            if arxiv_identifer.split(":")[1].split(".")[0] != arxiv_identifier_prefix:
+                print(f"Stopping InspireHEP records because arXiv_identifer = {arxiv_identifer} (not {arxiv_identifier_prefix}")
+                done = True
+                break
+
+            inspire_queries.append(f"identifier:\"{arxiv_identifer}\"")
+
+            break
+
+    else:
+        raise ValueError(f"unable to find eprint or DOI for {record}")
+
+
+print(f"Found {len(inspire_queries)} new potential articles through InspireHEP")
+
+for query in inspire_queries:
+    print(f"Doing InspireHEP query {query}")
+
+    article = list(ads.SearchQuery(q=query, fl=fields))[0]
+
+    if int(article.id) in records["id"]:
+        print(f"  Skipping explicitly added article from query ({query}) because it is already in records")
+        continue
+
+
+    for i, (is_matching_author, meta) \
+    in enumerate(map(matching_author, *(article.author, article.aff))):
+
+        if is_matching_author:
+            matching_authors.append([i] + meta)
+
+    if len(matching_authors) == 0:
+        print(f"  Skipping article ({article}) because no matched authors")
+        continue
+
+    new_articles.append((article, matching_authors))
+    records.add_row(utils.prepare_record(article))
+
+
+print(f"Total number of new articles: {len(new_articles)}")
 
 # Save the records.
 records.write(local_records_path, overwrite=True)
@@ -221,61 +296,68 @@ for i, (article, matching_authors) in enumerate(new_articles, start=1):
         continue
 
     # Search/replace for author names.
-    doc = fitz.open(path)
-    page = doc[0]
+    try:
 
-    for _, __, author_name, ___ in matching_authors:
-        last_name = author_name.split(",")[0]
+        doc = fitz.open(path)
+        page = doc[0]
 
-        for instance in page.searchFor(last_name):
-            # TODO: search around to highlight full name?
-            page.addHighlightAnnot(instance)
-            break
+        for _, __, author_name, ___ in matching_authors:
+            last_name = author_name.split(",")[0]
 
-        else:
-            print(f"Could not match name ({author_name}). Doing fuzzy search..")
-
-            author_list = ", ".join(article.author)
-            blocks = page.getTextBlocks()
-            block_ratios = [fuzz.ratio(block[4], last_name) for block in blocks]
-
-            block_index = np.argmax(block_ratios)
-
-            print(f"Using block index {block_index}: {blocks[block_index]} (score: {block_ratios[block_index]}; {block_ratios})")
-
-            fuzzy_name_split_trials = [", ", ","]
-            best_ratios = []
-
-            for fuzzy_name_split in fuzzy_name_split_trials:
-                author_name_reversed = ", ".join(author_name.split(", ")[::-1])
-                name_ratios = []
-                for block in blocks[block_index][4].split(fuzzy_name_split):
-
-                    block_str = block.replace("-\n", "")
-                    name_ratios.append(max(fuzz.ratio(block_str, author_name),
-                                           fuzz.ratio(block_str, author_name_reversed)))
-
-                name_index = np.argmax(name_ratios)
-                matched_string = blocks[block_index][4].split(fuzzy_name_split)[name_index]
-
-                best_ratios.append([matched_string, name_ratios[name_index]])
-
-            matched_string, best_ratio = best_ratios[np.argmax([ea[1] for ea in best_ratios])]
-
-            if best_ratio < 50:
-                print(f"Could not find likely match for '{author_name}' (score: {best_ratio} for {matched_string})")
-
-                # TODO: puta note about this in the email?
+            for instance in page.searchFor(last_name):
+                # TODO: search around to highlight full name?
+                page.addHighlightAnnot(instance)
+                break
 
             else:
-                print(f"Using matched name: {matched_string} for '{author_name}' (score: {best_ratio})")
+                print(f"Could not match name ({author_name}). Doing fuzzy search..")
 
-                for instance in page.searchFor(matched_string):
-                    page.addHighlightAnnot(instance)
+                author_list = ", ".join(article.author)
+                blocks = page.getTextBlocks()
+                block_ratios = [fuzz.ratio(block[4], last_name) for block in blocks]
+
+                block_index = np.argmax(block_ratios)
+
+                print(f"Using block index {block_index}: {blocks[block_index]} (score: {block_ratios[block_index]}; {block_ratios})")
+
+                fuzzy_name_split_trials = [", ", ","]
+                best_ratios = []
+
+                for fuzzy_name_split in fuzzy_name_split_trials:
+                    author_name_reversed = ", ".join(author_name.split(", ")[::-1])
+                    name_ratios = []
+                    for block in blocks[block_index][4].split(fuzzy_name_split):
+
+                        block_str = block.replace("-\n", "")
+                        name_ratios.append(max(fuzz.ratio(block_str, author_name),
+                                               fuzz.ratio(block_str, author_name_reversed)))
+
+                    name_index = np.argmax(name_ratios)
+                    matched_string = blocks[block_index][4].split(fuzzy_name_split)[name_index]
+
+                    best_ratios.append([matched_string, name_ratios[name_index]])
+
+                matched_string, best_ratio = best_ratios[np.argmax([ea[1] for ea in best_ratios])]
+
+                if best_ratio < 50:
+                    print(f"Could not find likely match for '{author_name}' (score: {best_ratio} for {matched_string})")
+
+                    # TODO: puta note about this in the email?
+
+                else:
+                    print(f"Using matched name: {matched_string} for '{author_name}' (score: {best_ratio})")
+
+                    for instance in page.searchFor(matched_string):
+                        page.addHighlightAnnot(instance)
 
 
-    new_path = f"{path}.pdf"
-    doc.save(new_path, garbage=4, deflate=True, clean=True)
+        new_path = f"{path}.pdf"
+        doc.save(new_path, garbage=4, deflate=True, clean=True)
+
+    except:
+        new_articles_with_errors.append((article, matching_authors))
+        print(f"Faied to search/replcae on {article}")
+        continue
 
     paths.append([new_path, article, matching_authors])
 
