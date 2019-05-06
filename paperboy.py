@@ -449,6 +449,12 @@ email_body = f"""
 Dear colleague,
 
 Attached you will find a summary of publications in {year} / {month} by Monash researchers in the School of Physics and Astronomy.
+This includes articles found through the following resources:
+
+- The SAO/NASA Astrophysical Data System (https://ui.adsabs.harvard.edu/)
+- InspireHEP (http://inspirehep.net)
+
+
 
 {executive_summary}
 
