@@ -23,7 +23,10 @@ def stripped_affiliations(aff):
 def load_records(path):
 
     if os.path.exists(path):
-        return Table.read(path, encoding="latin-1")
+        try:
+            return Table.read(path, encoding="latin-1")
+        except:
+            return Table.read(path, encoding="utf-8")
 
     # Return an empty Table with the expected columns.
     return Table(rows=None,
@@ -51,6 +54,8 @@ def download_pdf_to_path(url, path=None):
     return path
 
 
+def eprint_pdf_uri(bibcode):
+    return f"https://ui.adsabs.harvard.edu/link_gateway/{bibcode}/EPRINT_PDF"
 
 def retrieve_pdf(article, path=None):
 
@@ -74,7 +79,9 @@ def retrieve_pdf(article, path=None):
             #url = "https://arxiv.org/pdf/{0}".format(basename)
 
             # Ask ADS to send us to the right place.
-            url = f"http://adsabs.harvard.edu/cgi-bin/nph-data_query?bibcode={article.bibcode}&link_type=PREPRINT"
+            #url = f"http://adsabs.harvard.edu/cgi-bin/nph-data_query?bibcode={article.bibcode}&link_type=PREPRINT"
+            url = eprint_pdf_uri(article.bibcode)
+
             r = requests.get(url)
 
             if not r.ok:

@@ -1,7 +1,7 @@
 
-""" 
-Monthly publications board script for the School of Physics & Astronomy, 
-Monash University 
+"""
+Monthly publications board script for the School of Physics & Astronomy,
+Monash University
 
 
 This script is expected to be run about once a month.
@@ -21,6 +21,9 @@ EMAIL_TO = ", ".join([
 #    "Zac.Johnston@monash.edu"
 ])
 
+
+
+require_inspirehep_articles_to_have_matched_authors = False
 
 def matching_author(author, aff):
 
@@ -111,7 +114,7 @@ from bs4 import BeautifulSoup
 import utils
 
 
-if __name__ != "__main__": 
+if __name__ != "__main__":
     sys.exit()
 
 # Be in the here and now.
@@ -135,7 +138,7 @@ else:
 print(f"Querying {year} / {month}")
 
 query = f"""
-    {ADS_QUERY} 
+    {ADS_QUERY}
     AND (
             (property:refereed AND pubdate:{year}-{month:02d})
         OR  identifier:\"{year % 100}{month:02d}.*\"
@@ -144,7 +147,7 @@ query = f"""
 
 # Clean up whitespace.
 query = re.sub("\s{2,}", " ", query).strip()
-fields = ["id", "first_author", "author", "aff", "title", "year", "bibcode", 
+fields = ["id", "first_author", "author", "aff", "title", "year", "bibcode",
           "identifier", "journal", "volume", "pub", "page", "issue", "pubdate"]
 
 articles = ads.SearchQuery(q=query, fl=fields)
@@ -178,7 +181,7 @@ for i, article in enumerate(articles):
 
 print(f"Found {len(new_articles)} new articles found")
 
-# Explicitly add these records 
+# Explicitly add these records
 print("Searching InspireHEP like a caveman")
 
 inspire = requests.get("http://inspirehep.net/search?ln=en&p=find+Monash&of=hb&action_search=Search&sf=earliestdate&so=d&rm=&rg=250&sc=0")
@@ -227,7 +230,12 @@ print(f"Found {len(inspire_queries)} new potential articles through InspireHEP")
 for query in inspire_queries:
     print(f"Doing InspireHEP query {query}")
 
-    article = list(ads.SearchQuery(q=query, fl=fields))[0]
+    try:
+        article = list(ads.SearchQuery(q=query, fl=fields))[0]
+    except:
+        print(f"  Skipping article because no DOI found in ADS: {query}")
+        continue
+
 
     if int(article.id) in records["id"]:
         print(f"  Skipping explicitly added article from query ({query}) because it is already in records")
@@ -240,7 +248,7 @@ for query in inspire_queries:
         if is_matching_author:
             matching_authors.append([i] + meta)
 
-    if len(matching_authors) == 0:
+    if len(matching_authors) == 0 and require_inspirehep_articles_to_have_matched_authors:
         print(f"  Skipping article ({article}) because no matched authors")
         continue
 
@@ -259,7 +267,13 @@ if len(new_articles) == 0:
 
 
 # Sort the new records to have first authors at front.
-author_index = [ma[0][0] for a, ma in new_articles]
+author_index = []
+for a, ma in new_articles:
+    if len(ma):
+        author_index.append(ma[0][0])
+    else:
+        author_index.append(1000)
+
 na_indices = np.argsort(author_index)
 new_articles = [new_articles[idx] for idx in na_indices]
 
@@ -397,8 +411,8 @@ if failed_to_add_page_errors or new_articles_with_errors:
         failure = f"""Could not find PDF for this article:
 
         {summary}
-        URL: http://adsabs.harvard.edu/abs/{article.bibcode}
-        
+        URL: {utils.eprint_pdf_uri(article.bibcode)}
+
         """
 
         failure_summary += "\n".join([ea.lstrip() for ea in failure.split("\n")])
@@ -414,8 +428,8 @@ if failed_to_add_page_errors or new_articles_with_errors:
         failure = f"""Could not add first page of this article's PDF:
 
         {summary}
-        URL: http://adsabs.harvard.edu/abs/{article.bibcode}
-        
+        URL: {utils.eprint_pdf_uri(article.bibcode)}
+
         """
 
         failure_summary += "\n".join([ea.lstrip() for ea in failure.split("\n")])
